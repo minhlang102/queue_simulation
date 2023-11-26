@@ -22,10 +22,68 @@ NUMBER_SERVER_OF_EACH_CHECK_INFO = 3
 NUMBER_CHECK_SECURITY = 8
 SIM_TIME = 120
 
+p = [[0 for j in range(14)] for i in range(14)]
+
+p[0][1] = 0.4
+p[0][2] = 0.3
+p[0][3] = 0.3
+
+p[1][4] = 0.9
+p[1][5] = 0.1
+
+p[2][4] = 0.9
+p[2][5] = 0.1
+
+p[3][4] = 0.9
+p[3][5] = 0.1
+
+p[4][1] = 0.01
+p[4][2] = 0.01
+p[4][3] = 0.01
+p[4][6] = 0.155
+p[4][7] = 0.155
+p[4][8]= 0.155
+p[4][9]= 0.155
+p[4][10] = 0.155
+p[4][11] = 0.155
+p[4][0] = 0.04
+
+p[5][1] = 0.01
+p[5][2] = 0.01
+p[5][3] = 0.01
+p[5][12] = 0.9
+p[5][0] = 0.07
+
+p[6][13] = 0.1
+# p6_pass = 0.1
+
+p[7][13] = 0.1
+# p7_pass = 0.1
+
+p[8][13] = 0.1
+# p8_pass = 0.1
+
+p[9][13 ]= 0.1
+# p9_pass = 0.1
+
+p[10][13] = 0.1
+# p10_pass = 0.1
+
+p[11][13] = 0.1
+# p11_pass = 0.1
+
+p[12][13] = 0.1
+# p12_pass = 0.1
+
+p[13][0] = 0.1
+# p13_pass = 0.1
+
+
 class CheckIn:
-    def __init__(self, env, id, mu, number_of_server=1):
+    def __init__(self, env, id, mu, p, number_of_server=1):
         self.id = id
         self.mu = mu
+        self.p = p
         self.resource = simpy.Resource(env, number_of_server)
 
     def doService(self, env, passenger_id):
@@ -35,9 +93,10 @@ class CheckIn:
 
 
 class CheckInfo:
-    def __init__(self, env, id, mu, number_of_server=1):
+    def __init__(self, env, id, mu, p, number_of_server=1):
         self.id = id
         self.mu = mu
+        self.p = p
         self.resource = simpy.Resource(env, number_of_server)
 
     def doService(self, env, passenger_id):
@@ -47,9 +106,10 @@ class CheckInfo:
 
 
 class CheckSecurity:
-    def __init__(self, env, id, mu, number_of_server=1):
+    def __init__(self, env, id, mu, p, number_of_server=1):
         self.id = id
         self.mu = mu
+        self.p = p
         self.resource = simpy.Resource(env, number_of_server)
 
     def doService(self, env, passenger_id):
@@ -101,7 +161,7 @@ class Passenger:
 
             prob = np.random.uniform()
             print(f"Passenger {self.id} prob {prob}")
-            if prob < 0.9:
+            if prob < server.check_in_server[check_in_id - 1].p[check_in_id][4]:
                 env.process(self.checkInfoProc(env, server, 1))
             else:
                 env.process(self.checkInfoProc(env, server, 2))
@@ -130,23 +190,23 @@ class Passenger:
             if check_info_id == 1:
                 prob = np.random.uniform()
                 print(f"Passenger {self.id} prob {prob}")
-                if prob < 0.14:
+                if prob < p[check_info_id+5][6]:
                     env.process(self.checkSecurityProc(env, server, 1))
-                elif prob < 0.28:
+                elif prob < sum(p[check_info_id+5][6:8]):
                     env.process(self.checkSecurityProc(env, server, 2))
-                elif prob < 0.42:
+                elif prob < sum(p[check_info_id+5][6:9]):
                     env.process(self.checkSecurityProc(env, server, 3))
-                elif prob < 0.56:
+                elif prob < sum(p[check_info_id+5][6:10]):
                     env.process(self.checkSecurityProc(env, server, 4))
-                elif prob < 0.70:
+                elif prob < sum(p[check_info_id+5][6:11]):
                     env.process(self.checkSecurityProc(env, server, 5))
-                elif prob < 0.84:
+                elif prob < sum(p[check_info_id+5][6:12]):
                     env.process(self.checkSecurityProc(env, server, 6))
-                elif prob < 0.87:
+                elif prob < p4_1 + sum(p[check_info_id+5][6:12]):
                     env.process(self.checkInProc(env, server, 1))
-                elif prob < 0.90:
+                elif prob < p4_1 + p4_2 + sum(p[check_info_id+5][6:12]):
                     env.process(self.checkInProc(env, server, 2))
-                elif prob < 0.93:
+                elif prob < p4_1 + p4_2 + p4_3 + sum(p[check_info_id+5][6:12]):
                     env.process(self.checkInProc(env, server, 3))
                 else:
                     print(f"Passenger {self.id} EXIT at {env.now}")
@@ -154,11 +214,11 @@ class Passenger:
             if check_info_id == 2:
                 prob = np.random.uniform()
                 print(f"Passenger {self.id} prob {prob}")
-                if prob < 0.7:
-                    env.process(self.checkSecurityProc(env, server, 7))
-                elif prob < 0.8:
+                if prob < p[check_info_id+5][12]:
+                    env.process(self.checkSecurityProc(env, server, 12))
+                elif prob < p[check_info_id+5][1]:
                     env.process(self.checkInProc(env, server, 1))
-                elif prob < 0.9:
+                elif prob < p[check_info_id+5][2]:
                     env.process(self.checkInProc(env, server, 2))
                 else:
                     env.process(self.checkInProc(env, server, 3))
@@ -191,27 +251,26 @@ class Passenger:
             if check_security_id < 8:
                 prob = np.random.uniform()
                 print(f"Passenger {self.id} prob {prob}")
-                if prob < 0.9:
+                if prob < p[check_security_id][13]:
+                    env.process(self.checkSecurityProc(env, server, 8))
+                elif prob < p[check_security_id][0]:
+                    print(f"Passenger {self.id} EXIT at {env.now}")
+                    record.add_record(self)
+                else:
                     self.is_finished = True
                     print(f"Passenger {self.id} DONE at {env.now}")
-                    record.add_record(self)
-                elif prob < 0.95:
-                    env.process(self.checkSecurityProc(env, server, 8))
-                else:
-                    print(f"Passenger {self.id} EXIT at {env.now}")
                     record.add_record(self)
 
             if check_security_id == 8:
                 prob = np.random.uniform()
                 print(f"Passenger {self.id} prob {prob}")
-                if prob < 0.9:
+                if prob < p[check_in_id][0]:
+                    print(f"Passenger {self.id} EXIT at {env.now}")
+                    record.add_record(self)
+                else:
                     self.is_finished = True
                     print(f"Passenger {self.id} DONE at {env.now}")
                     record.add_record(self)
-                else:
-                    print(f"Passenger {self.id} EXIT at {env.now}")
-                    record.add_record(self)
-
 
 class PassengerRecords:
     def __init__(self):
@@ -374,18 +433,19 @@ env = simpy.Environment()
 check_in = []
 check_info = []
 check_security = []
+
 for i in range(NUMBER_CHECK_IN):
     mu_value = i + 1
-    check_in.append(CheckIn(env, i, locals()[f"MU{mu_value}"]))
+    check_in.append(CheckIn(env, i, locals()[f"MU{mu_value}"], p[i][:14]))
 for i in range(NUMBER_CHECK_INFO):
     mu_value = i + 1 + NUMBER_CHECK_IN
     number_of_server = NUMBER_SERVER_OF_EACH_CHECK_INFO
     if mu_value == 5:
         number_of_server = 1
-    check_info.append(CheckInfo(env, i, locals()[f"MU{mu_value}"], number_of_server))
+    check_info.append(CheckInfo(env, i, locals()[f"MU{mu_value}"], p[i][:14], number_of_server))
 for i in range(NUMBER_CHECK_SECURITY):
     mu_value = i + 1 + NUMBER_CHECK_IN + NUMBER_CHECK_INFO
-    check_security.append(CheckSecurity(env, i, locals()[f"MU{mu_value}"]))
+    check_security.append(CheckSecurity(env, i, locals()[f"MU{mu_value}"], p[i][:14]))
 server = Server(check_in, check_info, check_security)
 passenger_generator = PassengerGenerator(env, server)
 env.run(until=SIM_TIME)
