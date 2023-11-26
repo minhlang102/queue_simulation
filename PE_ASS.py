@@ -2,20 +2,20 @@ import simpy
 import numpy as np
 import matplotlib.pyplot as plt
 
-LAM = 5
-MU1 = 1
-MU2 = 1
-MU3 = 1
-MU4 = 2
-MU5 = 1
-MU6 = 1
-MU7 = 1
-MU8 = 1
-MU9 = 1
-MU10 = 1
-MU11 = 1
-MU12 = 1
-MU13 = 1
+LAM = 200/60
+MU1 = 100
+MU2 = 100
+MU3 = 100
+MU4 = 200
+MU5 = 30
+MU6 = 50
+MU7 = 50
+MU8 = 50
+MU9 = 50
+MU10 = 50
+MU11 = 50
+MU12 = 50
+MU13 = 10
 NUMBER_CHECK_IN = 3
 NUMBER_CHECK_INFO = 2
 NUMBER_SERVER_OF_EACH_CHECK_INFO = 3
