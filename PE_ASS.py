@@ -4,26 +4,26 @@ import matplotlib.pyplot as plt
 import random
 from random import seed
 
-LAM = 2000/60
+LAM = 200
 
-MU1 = 1000/60
-MU2 = 1000/60
-MU3 = 1000/60
-MU4 = 2000/60
-MU5 = 300/60
-MU6 = 500/60
-MU7 = 500/60
-MU8 = 500/60
-MU9 = 500/60
-MU10 = 500/60
-MU11 = 500/60
-MU12 = 500/60
-MU13 = 100/60
+MU1 = 100
+MU2 = 100
+MU3 = 100
+MU4 = 200
+MU5 = 30
+MU6 = 50
+MU7 = 50
+MU8 = 50
+MU9 = 50
+MU10 = 50
+MU11 = 50
+MU12 = 50
+MU13 = 10
 NUMBER_CHECK_IN = 3
 NUMBER_CHECK_INFO = 2
 NUMBER_SERVER_OF_EACH_CHECK_INFO = 3
 NUMBER_CHECK_SECURITY = 8
-SIM_TIME = 60
+SIM_TIME = 10
 
 p = [[0 for j in range(14)] for i in range(14)]
 
@@ -57,28 +57,28 @@ p[5][3] = 0.01
 p[5][12] = 0.9
 p[5][0] = 0.07
 
-p[6][13] = 0.1
+p[6][13] = 0.02
 # p6_pass = 0.1
 
-p[7][13] = 0.1
+p[7][13] = 0.02
 # p7_pass = 0.1
 
-p[8][13] = 0.1
+p[8][13] = 0.02
 # p8_pass = 0.1
 
-p[9][13 ]= 0.1
+p[9][13 ]= 0.02
 # p9_pass = 0.1
 
-p[10][13] = 0.1
+p[10][13] = 0.02
 # p10_pass = 0.1
 
-p[11][13] = 0.1
+p[11][13] = 0.02
 # p11_pass = 0.1
 
-p[12][13] = 0.1
+p[12][13] = 0.02
 # p12_pass = 0.1
 
-p[13][0] = 0.1
+p[13][0] = 0.02
 # p13_pass = 0.1
 
 class CheckIn:
@@ -87,8 +87,9 @@ class CheckIn:
         self.mu = mu
         self.resource = simpy.Resource(env, number_of_server)
 
-    def doService(self, env, passenger_id):
+    def doService(self, env, passenger):
         service_time = np.random.exponential(1.0 / self.mu)
+        passenger.check_in_time = service_time + passenger.check_in_time
         yield env.timeout(service_time)
         # print(f"Passenger {passenger_id} finish check in at {env.now}")
 
@@ -99,8 +100,9 @@ class CheckInfo:
         self.mu = mu
         self.resource = simpy.Resource(env, number_of_server)
 
-    def doService(self, env, passenger_id):
+    def doService(self, env, passenger):
         service_time = np.random.exponential(1.0 / self.mu)
+        passenger.check_info_time = service_time + passenger.check_info_time
         yield env.timeout(service_time)
         # print(f"Passenger {passenger_id} finish check information at {env.now}")
 
@@ -111,8 +113,9 @@ class CheckSecurity:
         self.mu = mu
         self.resource = simpy.Resource(env, number_of_server)
 
-    def doService(self, env, passenger_id):
+    def doService(self, env, passenger):
         service_time = np.random.exponential(1.0 / self.mu)
+        passenger.check_security_time = service_time + passenger.check_security_time
         yield env.timeout(service_time)
         # print(f"Passenger {passenger_id} finish check security {self.id} at {env.now}")
 
@@ -154,7 +157,7 @@ class Passenger:
             )
             # print(f"Passenger {self.id} WAIT {self.check_in_waiting_time} at CHECK IN")
             yield env.process(
-                server.check_in_server[check_in_id - 1].doService(env, self.id)
+                server.check_in_server[check_in_id - 1].doService(env, self)
             )
             # print(f"Passenger {self.id} finish CHECK IN at {env.now}")
 
@@ -182,7 +185,7 @@ class Passenger:
             #     f"Passenger {self.id} WAIT {self.check_info_waiting_time} at CHECK INFO"
             # )
             yield env.process(
-                server.check_info_server[check_info_id - 1].doService(env, self.id)
+                server.check_info_server[check_info_id - 1].doService(env, self)
             )
             # print(f"Passenger {self.id} finish CHECK INFO at {env.now}")
 
@@ -208,7 +211,7 @@ class Passenger:
                 elif prob < p[4][1] + p[4][2] + p[4][3] + sum(p[4][6:12]):
                     env.process(self.checkInProc(env, server, 3))
                 else:
-                    print(f"Passenger {self.id} EXIT at {env.now}")
+                    # print(f"Passenger {self.id} EXIT at {env.now}")
                     record.add_record(self)
             if check_info_id == 2:
                 prob = np.random.uniform()
@@ -222,7 +225,7 @@ class Passenger:
                 elif prob < p[5][3]:
                     env.process(self.checkInProc(env, server, 3))
                 else:
-                    print(f"Passenger {self.id} EXIT at {env.now}")
+                    # print(f"Passenger {self.id} EXIT at {env.now}")
                     record.add_record(self)
 
     def checkSecurityProc(self, env, server, check_security_id):
@@ -245,7 +248,7 @@ class Passenger:
             # )
             yield env.process(
                 server.check_security_server[check_security_id - 1].doService(
-                    env, self.id
+                    env, self
                 )
             )
             # print(f"Passenger {self.id} finish CHECK SECURITY at {env.now}")
@@ -257,18 +260,18 @@ class Passenger:
                     env.process(self.checkSecurityProc(env, server, 8))
                 else:
                     self.is_finished = True
-                    print(f"Passenger {self.id} DONE at {env.now}")
+                    # print(f"Passenger {self.id} DONE at {env.now}")
                     record.add_record(self)
 
             if check_security_id == 8:
                 prob = np.random.uniform()
                 # print(f"Passenger {self.id} prob {prob}")
                 if prob < p[13][0]:
-                    print(f"Passenger {self.id} EXIT at {env.now}")
+                    # print(f"Passenger {self.id} EXIT at {env.now}")
                     record.add_record(self)
                 else:
                     self.is_finished = True
-                    print(f"Passenger {self.id} DONE at {env.now}")
+                    # print(f"Passenger {self.id} DONE at {env.now}")
                     record.add_record(self)
 
 
@@ -458,18 +461,17 @@ class PassengerGenerator:
         while True:
             global static_analyzer_arrival_rate,static_analyzer_interval
             duration = random.expovariate(LAM)
-            # static_analyzer_arrival_rate.addValue(1/duration)
-            static_analyzer_interval.addValue(duration)
             yield env.timeout(duration)
+            static_analyzer_interval.addValue(duration)
             passenger = Passenger(i)
             passenger.arrival_time = env.now
             print(f"Passenger {i} arrive at {passenger.arrival_time}")
 
             prob = np.random.uniform()
             # print(f"Passenger {i} prob {prob}")
-            if prob < 0.33:
+            if prob < p[0][1]:
                 env.process(passenger.checkInProc(env, self.server, 1))
-            elif prob < 0.66:
+            elif prob < p[0][2]:
                 env.process(passenger.checkInProc(env, self.server, 2))
             else:
                 env.process(passenger.checkInProc(env, self.server, 3))
@@ -478,7 +480,6 @@ class PassengerGenerator:
 static_analyzer_arrival_rate = StatisticsAnalyzer(1000)
 static_analyzer_interval=StatisticsAnalyzer(1000)
 random.seed(42)
-
 record = PassengerRecords()
 env = simpy.Environment()
 check_in = []
@@ -508,28 +509,35 @@ env.run(until=SIM_TIME)
     selected_check_info_waiting_time,
     selected_check_info_time,
     selected_check_security_waiting_time,
-    selected_check_info_time,
+    selected_check_security_time,
     toltalTime,
-) = record.getRecordsInHour(0, 10, True, "arrival_time")
+) = record.getRecordsInHour(0, 1, True, "arrival_time")
 
 
 
 print(len(selected_arrival_time))
 
+# print(
+#     f"Cov waiting time: {np.cov(selected_arrival_time, selected_check_in_waiting_time + selected_check_info_waiting_time + selected_check_security_waiting_time)[0,1]}"
+# )
 print(
-    f"Cov waiting time: {np.cov(selected_arrival_time, selected_check_in_waiting_time + selected_check_info_waiting_time + selected_check_security_waiting_time)[0,1]}"
+    f"Mean total time: {np.mean(toltalTime)}"
 )
 print(
     f"Mean waiting time: {np.mean(selected_check_in_waiting_time + selected_check_info_waiting_time + selected_check_security_waiting_time)}"
 )
 
-static1 = StatisticsAnalyzer(1000)
-static2 = StatisticsAnalyzer(1000)
-static3 = StatisticsAnalyzer(1000)
-static1.addDataset(selected_check_in_waiting_time)
-static2.addDataset(selected_check_info_waiting_time)
-static3.addDataset(selected_check_security_waiting_time)
-print((static1.getAverage()+static2.getAverage()+static3.getAverage()))
+# plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
+plt.plot(static_analyzer_interval.averageDataBuffer)
+plt.show()
+
+# static1 = StatisticsAnalyzer(1000)
+# static2 = StatisticsAnalyzer(1000)
+# static3 = StatisticsAnalyzer(1000)
+# static1.addDataset(selected_check_in_waiting_time)
+# static2.addDataset(selected_check_info_waiting_time)
+# static3.addDataset(selected_check_security_waiting_time)
+# print((static1.getAverage()+static2.getAverage()+static3.getAverage()))
 # plt.show()
 # plt.plot(
 #     selected_arrival_time,
