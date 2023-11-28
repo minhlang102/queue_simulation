@@ -23,7 +23,7 @@ NUMBER_CHECK_IN = 3
 NUMBER_CHECK_INFO = 2
 NUMBER_SERVER_OF_EACH_CHECK_INFO = 3
 NUMBER_CHECK_SECURITY = 8
-SIM_TIME = 10
+SIM_TIME = 50
 
 p = [[0 for j in range(14)] for i in range(14)]
 
@@ -218,11 +218,11 @@ class Passenger:
                 # print(f"Passenger {self.id} prob {prob}")
                 if prob < p[5][12]:
                     env.process(self.checkSecurityProc(env, server, 7))
-                elif prob < p[5][1]:
+                elif prob < p[5][12] + p[5][1]:
                     env.process(self.checkInProc(env, server, 1))
-                elif prob < p[5][2]:
+                elif prob < p[5][12] + p[5][1] + p[5][2]:
                     env.process(self.checkInProc(env, server, 2))
-                elif prob < p[5][3]:
+                elif prob < p[5][12] + p[5][1] + p[5][2] + p[5][3]:
                     env.process(self.checkInProc(env, server, 3))
                 else:
                     # print(f"Passenger {self.id} EXIT at {env.now}")
@@ -333,6 +333,18 @@ class PassengerRecords:
             + passenger.check_info_time
             + passenger.check_security_waiting_time
             + passenger.check_security_time,
+        )
+
+    def getRawRecord(self):
+        return (
+            self.arrival_time,
+            self.check_in_waiting_time,
+            self.check_in_time,
+            self.check_info_waiting_time,
+            self.check_info_time,
+            self.check_security_waiting_time,
+            self.check_info_time,
+            self.totalTime,
         )
 
     def getRecordsInHour(self, startOfHour, endOfHour, sort=False, field=None):
@@ -471,7 +483,7 @@ class PassengerGenerator:
             # print(f"Passenger {i} prob {prob}")
             if prob < p[0][1]:
                 env.process(passenger.checkInProc(env, self.server, 1))
-            elif prob < p[0][2]:
+            elif prob < p[0][1] + p[0][2]:
                 env.process(passenger.checkInProc(env, self.server, 2))
             else:
                 env.process(passenger.checkInProc(env, self.server, 3))
@@ -511,7 +523,7 @@ env.run(until=SIM_TIME)
     selected_check_security_waiting_time,
     selected_check_security_time,
     toltalTime,
-) = record.getRecordsInHour(0, 1, True, "arrival_time")
+) = record.getRawRecord()
 
 
 
@@ -528,8 +540,8 @@ print(
 )
 
 # plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
-plt.plot(static_analyzer_interval.averageDataBuffer)
-plt.show()
+# plt.plot(static_analyzer_interval.averageDataBuffer)
+# plt.show()
 
 # static1 = StatisticsAnalyzer(1000)
 # static2 = StatisticsAnalyzer(1000)
