@@ -3,6 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 from random import seed
+from threading import Thread, Lock
+
+mutex = Lock()
+
+time_scale = 60
 
 LAM = 200
 
@@ -23,7 +28,7 @@ NUMBER_CHECK_IN = 3
 NUMBER_CHECK_INFO = 2
 NUMBER_SERVER_OF_EACH_CHECK_INFO = 3
 NUMBER_CHECK_SECURITY = 8
-SIM_TIME = 50
+SIM_TIME = 2000
 
 p = [[0 for j in range(14)] for i in range(14)]
 
@@ -80,6 +85,22 @@ p[12][13] = 0.02
 
 p[13][0] = 0.02
 # p13_pass = 0.1
+
+def addJob():
+    global num_job, num_job_current, job_env_add
+    while True:
+        yield job_env_add
+        with mutex:
+            num_job_current += 1
+            num_job.append(num_job_current)
+
+def popJob():
+    global num_job, num_job_current, job_env_pop
+    while True:
+        yield job_env_pop
+        with mutex:
+            num_job_current -= 1
+            num_job.append(num_job_current)
 
 class CheckIn:
     def __init__(self, env, id, mu, number_of_server=1):
@@ -146,6 +167,7 @@ class Passenger:
         self.is_finished = False
 
     def checkInProc(self, env, server, check_in_id):
+        global job_env_pop
         self.check_in_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK IN at {self.check_in_start_waiting_time}"
@@ -169,7 +191,7 @@ class Passenger:
                 env.process(self.checkInfoProc(env, server, 2))
 
     def checkInfoProc(self, env, server, check_info_id):
-        global record
+        global record, job_env_pop
         self.check_info_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK INFO at {self.check_info_start_waiting_time}"
@@ -212,6 +234,8 @@ class Passenger:
                     env.process(self.checkInProc(env, server, 3))
                 else:
                     # print(f"Passenger {self.id} EXIT at {env.now}")
+                    job_env_pop.succeed()
+                    job_env_pop = env.event()
                     record.add_record(self)
             if check_info_id == 2:
                 prob = np.random.uniform()
@@ -226,10 +250,12 @@ class Passenger:
                     env.process(self.checkInProc(env, server, 3))
                 else:
                     # print(f"Passenger {self.id} EXIT at {env.now}")
+                    job_env_pop.succeed()
+                    job_env_pop = env.event()
                     record.add_record(self)
 
     def checkSecurityProc(self, env, server, check_security_id):
-        global record
+        global record, job_env_pop
         self.check_security_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK SECURITY-{check_security_id-1} at {self.check_security_start_waiting_time}"
@@ -261,6 +287,8 @@ class Passenger:
                 else:
                     self.is_finished = True
                     # print(f"Passenger {self.id} DONE at {env.now}")
+                    job_env_pop.succeed()
+                    job_env_pop = env.event()
                     record.add_record(self)
 
             if check_security_id == 8:
@@ -272,6 +300,8 @@ class Passenger:
                 else:
                     self.is_finished = True
                     # print(f"Passenger {self.id} DONE at {env.now}")
+                    job_env_pop.succeed()
+                    job_env_pop = env.event()
                     record.add_record(self)
 
 
@@ -468,17 +498,20 @@ class PassengerGenerator:
         env.process(self.generate(env))
 
     def generate(self, env):
+        global job_env_add
         print("LAM:",str(LAM))
         i = 1
         while True:
-            global static_analyzer_arrival_rate,static_analyzer_interval
-            duration = random.expovariate(LAM)
+            global static_analyzer_arrival_rate,static_analyzer_interval,num_job
+            duration = random.expovariate(LAM/time_scale)
             yield env.timeout(duration)
             static_analyzer_interval.addValue(duration)
             passenger = Passenger(i)
             passenger.arrival_time = env.now
+            job_env_add.succeed()
+            job_env_add = env.event()
             print(f"Passenger {i} arrive at {passenger.arrival_time}")
-
+            
             prob = np.random.uniform()
             # print(f"Passenger {i} prob {prob}")
             if prob < p[0][1]:
@@ -491,28 +524,33 @@ class PassengerGenerator:
 
 static_analyzer_arrival_rate = StatisticsAnalyzer(1000)
 static_analyzer_interval=StatisticsAnalyzer(1000)
+num_job_current = 0
+num_job = []
 random.seed(42)
 record = PassengerRecords()
 env = simpy.Environment()
+job_env_add = env.event()
+job_env_pop = env.event()
 check_in = []
 check_info = []
 check_security = []
 for i in range(NUMBER_CHECK_IN):
     mu_value = i + 1
-    check_in.append(CheckIn(env, i, locals()[f"MU{mu_value}"]))
+    check_in.append(CheckIn(env, i, locals()[f"MU{mu_value}"]/time_scale))
 for i in range(NUMBER_CHECK_INFO):
     mu_value = i + 1 + NUMBER_CHECK_IN
     number_of_server = NUMBER_SERVER_OF_EACH_CHECK_INFO
     if mu_value == 5:
         number_of_server = 1
-    check_info.append(CheckInfo(env, i, locals()[f"MU{mu_value}"], number_of_server))
+    check_info.append(CheckInfo(env, i, locals()[f"MU{mu_value}"]/time_scale, number_of_server))
 for i in range(NUMBER_CHECK_SECURITY):
     mu_value = i + 1 + NUMBER_CHECK_IN + NUMBER_CHECK_INFO
-    check_security.append(CheckSecurity(env, i, locals()[f"MU{mu_value}"]))
+    check_security.append(CheckSecurity(env, i, locals()[f"MU{mu_value}"]/time_scale))
 server = Server(check_in, check_info, check_security)
 passenger_generator = PassengerGenerator(env, server)
+env.process(addJob())
+env.process(popJob())
 env.run(until=SIM_TIME)
-
 
 (
     selected_arrival_time,
@@ -525,59 +563,24 @@ env.run(until=SIM_TIME)
     toltalTime,
 ) = record.getRawRecord()
 
+# (
+#     selected_arrival_time,
+#     selected_check_in_waiting_time,
+#     selected_check_in_time,
+#     selected_check_info_waiting_time,
+#     selected_check_info_time,
+#     selected_check_security_waiting_time,
+#     selected_check_security_time,
+#     toltalTime,
+# ) = record.getRecordsInHour(0, 24, True, "arrival_time")
 
-
-print(len(selected_arrival_time))
-
-# print(
-#     f"Cov waiting time: {np.cov(selected_arrival_time, selected_check_in_waiting_time + selected_check_info_waiting_time + selected_check_security_waiting_time)[0,1]}"
-# )
+print(f"Total job: {len(selected_arrival_time)}")
+print(f"Mean of Job: {np.mean(num_job)}")
 print(
-    f"Mean total time: {np.mean(toltalTime)}"
-)
-print(
-    f"Mean waiting time: {np.mean(selected_check_in_waiting_time + selected_check_info_waiting_time + selected_check_security_waiting_time)}"
+    f"Mean total time: {np.mean(toltalTime)/time_scale}"
 )
 
 # plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
 # plt.plot(static_analyzer_interval.averageDataBuffer)
+# plt.plot(num_job)
 # plt.show()
-
-# static1 = StatisticsAnalyzer(1000)
-# static2 = StatisticsAnalyzer(1000)
-# static3 = StatisticsAnalyzer(1000)
-# static1.addDataset(selected_check_in_waiting_time)
-# static2.addDataset(selected_check_info_waiting_time)
-# static3.addDataset(selected_check_security_waiting_time)
-# print((static1.getAverage()+static2.getAverage()+static3.getAverage()))
-# plt.show()
-# plt.plot(
-#     selected_arrival_time,
-#     selected_check_in_waiting_time
-#     + selected_check_info_waiting_time
-#     + selected_check_security_waiting_time,
-# )
-# plt.xlabel("Arrival time")
-# plt.ylabel("Total waiting time")
-# plt.title("Simple Plot")
-# plt.show()
-
-# plt.plot(
-#     selected_arrival_time,
-#     selected_check_in_waiting_time
-# )
-# plt.xlabel("Arrival time")
-# plt.ylabel("Total waiting time")
-# plt.title("Simple Plot")
-# plt.show()
-
-# for data in static_analyzer.rawDataPointBuffer:
-#     print(data)
-
-# plt.plot(
-#     static_analyzer.rawDataPointBuffer
-# )
-# plt.show()
-
-# print(static_analyzer_arrival_rate.getAverage())
-# print(static_analyzer_interval.getAverage())
