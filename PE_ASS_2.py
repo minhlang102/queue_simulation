@@ -7,7 +7,7 @@ from threading import Thread, Lock
 
 mutex = Lock()
 
-time_scale = 1
+time_scale = 60
 
 LAM = 120000
 
@@ -34,7 +34,7 @@ NUMBER_CHECK_IN = 4
 NUMBER_CHECK_INFO = 2
 NUMBER_SERVER_OF_EACH_CHECK_INFO = 4
 NUMBER_CHECK_SECURITY = 9
-SIM_TIME = 1
+SIM_TIME = 10
 
 p = [[0 for j in range(14)] for i in range(14)]
 
@@ -108,7 +108,7 @@ def addJob():
         yield job_env_add
         with mutex:
             num_job_current += 1
-            num_job.append(num_job_current)
+            static_analyzer_passenger.addValue(num_job_current)
 
 def popJob():
     global num_job, num_job_current, job_env_pop
@@ -116,7 +116,7 @@ def popJob():
         yield job_env_pop
         with mutex:
             num_job_current -= 1
-            num_job.append(num_job_current)
+            static_analyzer_passenger.addValue(num_job_current)
 
 class CheckIn:
     def __init__(self, env, id, mu, number_of_server=1):
@@ -168,30 +168,27 @@ class Passenger:
     def __init__(self, id):
         self.id = id
         self.arrival_time = 0
-        self.check_in_start_waiting_time = 0
         self.check_in_waiting_time = 0
         self.check_in_time = 0
-        self.check_info_start_waiting_time = 0
         self.check_info_waiting_time = 0
         self.check_info_time = 0
         self.check_security_start_waiting_time = 0
         self.check_security_waiting_time = 0
         self.check_security_time = 0
-        self.check_special_security_start_waiting_time = 0
         self.check_special_security_waiting_time = 0
         self.check_special_security_time = 0
         self.is_finished = False
 
     def checkInProc(self, env, server, check_in_id):
         global job_env_pop
-        self.check_in_start_waiting_time = env.now
+        check_in_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK IN at {self.check_in_start_waiting_time}"
         # )
         with server.check_in_server[check_in_id - 1].resource.request() as req:
             yield req
             self.check_in_waiting_time = (
-                env.now - self.check_in_start_waiting_time + self.check_in_waiting_time
+                env.now - check_in_start_waiting_time + self.check_in_waiting_time
             )
             # print(f"Passenger {self.id} WAIT {self.check_in_waiting_time} at CHECK IN")
             yield env.process(
@@ -208,7 +205,7 @@ class Passenger:
 
     def checkInfoProc(self, env, server, check_info_id):
         global record, job_env_pop
-        self.check_info_start_waiting_time = env.now
+        check_info_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK INFO at {self.check_info_start_waiting_time}"
         # )
@@ -216,7 +213,7 @@ class Passenger:
             yield req
             self.check_info_waiting_time = (
                 env.now
-                - self.check_info_start_waiting_time
+                - check_info_start_waiting_time
                 + self.check_info_waiting_time
             )
             # print(
@@ -278,7 +275,7 @@ class Passenger:
 
     def checkSecurityProc(self, env, server, check_security_id):
         global record, job_env_pop
-        self.check_security_start_waiting_time = env.now
+        check_security_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK SECURITY-{check_security_id-1} at {self.check_security_start_waiting_time}"
         # )
@@ -288,7 +285,7 @@ class Passenger:
             yield req
             self.check_security_waiting_time = (
                 env.now
-                - self.check_security_start_waiting_time
+                - check_security_start_waiting_time
                 + self.check_security_waiting_time
             )
             # print(
@@ -419,81 +416,11 @@ class PassengerRecords:
             self.totalTime[record.is_finished],
         )
 
-    def getRecordsInHour(self, startOfHour, endOfHour, sort=False, field=None):
-        selected_arrival_time = np.array([])
-        selected_check_in_waiting_time = np.array([])
-        selected_check_in_time = np.array([])
-        selected_check_info_waiting_time = np.array([])
-        selected_check_info_time = np.array([])
-        selected_check_security_waiting_time = np.array([])
-        selected_check_security_time = np.array([])
-        toltalTime = np.array([])
-        for i in range(self.record_count):
-            passengerRealTimeInHour = self.arrival_time[i] / 60
-            if (
-                passengerRealTimeInHour >= startOfHour
-                and passengerRealTimeInHour <= endOfHour
-            ):
-                selected_arrival_time = np.append(
-                    selected_arrival_time, self.arrival_time[i]
-                )
-                selected_check_in_waiting_time = np.append(
-                    selected_check_in_waiting_time, self.check_in_waiting_time[i]
-                )
-                selected_check_in_time = np.append(
-                    selected_check_in_time, self.check_in_time[i]
-                )
-                selected_check_info_waiting_time = np.append(
-                    selected_check_info_waiting_time, self.check_info_waiting_time[i]
-                )
-                selected_check_info_time = np.append(
-                    selected_check_info_time, self.check_info_time[i]
-                )
-                selected_check_security_waiting_time = np.append(
-                    selected_check_security_waiting_time,
-                    self.check_security_waiting_time[i],
-                )
-                selected_check_security_time = np.append(
-                    selected_check_security_time, self.check_security_time[i]
-                )
-                toltalTime = np.append(toltalTime, self.totalTime)
-        if sort is True:
-            sorted_indices = np.array([])
-            if field == "arrival_time":
-                sorted_indices = np.argsort(selected_arrival_time)
-
-            selected_arrival_time = selected_arrival_time[sorted_indices]
-            selected_check_in_waiting_time = selected_check_in_waiting_time[
-                sorted_indices
-            ]
-            selected_check_in_time = selected_check_in_time[sorted_indices]
-            selected_check_info_waiting_time = selected_check_info_waiting_time[
-                sorted_indices
-            ]
-            selected_check_info_time = selected_check_info_time[sorted_indices]
-            selected_check_security_waiting_time = selected_check_security_waiting_time[
-                sorted_indices
-            ]
-            selected_check_security_time = selected_check_security_time[sorted_indices]
-            toltalTime = toltalTime[sorted_indices]
-
-        return (
-            selected_arrival_time,
-            selected_check_in_waiting_time,
-            selected_check_in_time,
-            selected_check_info_waiting_time,
-            selected_check_info_time,
-            selected_check_security_waiting_time,
-            selected_check_info_time,
-            toltalTime,
-        )
-
 class StatisticsAnalyzer:
-    def __init__(self, max_size):
+    def __init__(self):
         self.rawDataPointBuffer = np.array([])
         self.averageDataBuffer = np.array([])
         self.stdBuffer = np.array([])
-        self.max_size = max_size
 
     def addValue(self, newval):
         self.rawDataPointBuffer = np.append(self.rawDataPointBuffer, newval)
@@ -567,8 +494,8 @@ class PassengerGenerator:
                 env.process(passenger.checkInProc(env, self.server, 4))
             i += 1
 
-static_analyzer_arrival_rate = StatisticsAnalyzer(1000)
-static_analyzer_interval=StatisticsAnalyzer(1000)
+static_analyzer_passenger = StatisticsAnalyzer()
+static_analyzer_interval = StatisticsAnalyzer()
 num_job_current = 0
 num_job = []
 random.seed(42)
@@ -623,16 +550,17 @@ env.run(until=SIM_TIME)
 
 print(f"Total job in: {len(raw_arrival_time)}")
 print(f"Total job out: {len(selected_arrival_time)}")
-print(f"Mean of Job: {np.mean(num_job)}")
+print(f"Mean of Job: {static_analyzer_passenger.getAverage()}")
 print(f"Mean total time: {np.mean(toltalTime)/time_scale}")
 
-if False:
-    plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
+if True:
+    # plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
+    # plt.show()
+
     plt.plot(static_analyzer_interval.averageDataBuffer)
-    test = []
-    for i in range(len(num_job)):
-        test.append(np.mean(num_job[0:i+1]))
-    plt.plot(test)
+    plt.show()
+
+    plt.plot(static_analyzer_passenger.averageDataBuffer)
     plt.show()
 
     plt.plot(
@@ -641,5 +569,4 @@ if False:
     )
     plt.xlabel("Arrival time")
     plt.ylabel("Total time")
-    plt.title("Simple Plot")
     plt.show()
