@@ -279,7 +279,6 @@ class Passenger:
                 if prob < p[6][13]:
                     env.process(self.checkSecurityProc(env, server, 8))
                 else:
-                    self.is_finished = True
                     # print(f"Passenger {self.id} DONE at {env.now}")
                     job_env_pop.succeed()
                     job_env_pop = env.event()
@@ -294,7 +293,6 @@ class Passenger:
                     job_env_pop = env.event()
                     record.updatePassenger(self)
                 else:
-                    self.is_finished = True
                     # print(f"Passenger {self.id} DONE at {env.now}")
                     job_env_pop.succeed()
                     job_env_pop = env.event()
@@ -571,6 +569,17 @@ env.process(popJob())
 env.run(until=SIM_TIME)
 
 (
+    raw_arrival_time,
+    raw_check_in_waiting_time,
+    raw_check_in_time,
+    raw_check_info_waiting_time,
+    raw_check_info_time,
+    raw_check_security_waiting_time,
+    raw_check_security_time,
+    toltalTime,
+) = record.getRawRecord()
+
+(
     selected_arrival_time,
     selected_check_in_waiting_time,
     selected_check_in_time,
@@ -581,80 +590,25 @@ env.run(until=SIM_TIME)
     toltalTime,
 ) = record.getRawRecordFiltered()
 
-while np.mean(num_job) < len(selected_arrival_time) and False:
-    LAM+=1
-    print(f"Run with LAM: {LAM}")
-    static_analyzer_arrival_rate = StatisticsAnalyzer(1000)
-    static_analyzer_interval=StatisticsAnalyzer(1000)
-    num_job_current = 0
-    num_job = []
-    random.seed(42)
-    record = PassengerRecords()
-    env = simpy.Environment()
-    job_env_add = env.event()
-    job_env_pop = env.event()
-    check_in = []
-    check_info = []
-    check_security = []
-    for i in range(NUMBER_CHECK_IN):
-        mu_value = i + 1
-        check_in.append(CheckIn(env, i, locals()[f"MU{mu_value}"]/time_scale))
-    for i in range(NUMBER_CHECK_INFO):
-        mu_value = i + 1 + NUMBER_CHECK_IN
-        number_of_server = NUMBER_SERVER_OF_EACH_CHECK_INFO
-        if mu_value == 5:
-            number_of_server = 1
-        check_info.append(CheckInfo(env, i, locals()[f"MU{mu_value}"]/time_scale, number_of_server))
-    for i in range(NUMBER_CHECK_SECURITY):
-        mu_value = i + 1 + NUMBER_CHECK_IN + NUMBER_CHECK_INFO
-        check_security.append(CheckSecurity(env, i, locals()[f"MU{mu_value}"]/time_scale))
-
-    server = Server(check_in, check_info, check_security)
-    passenger_generator = PassengerGenerator(env, server)
-    env.process(addJob())
-    env.process(popJob())
-    env.run(until=SIM_TIME)
-
-    (
-        selected_arrival_time,
-        selected_check_in_waiting_time,
-        selected_check_in_time,
-        selected_check_info_waiting_time,
-        selected_check_info_time,
-        selected_check_security_waiting_time,
-        selected_check_security_time,
-        toltalTime,
-    ) = record.getRawRecord()
-
-# (
-#     selected_arrival_time,
-#     selected_check_in_waiting_time,
-#     selected_check_in_time,
-#     selected_check_info_waiting_time,
-#     selected_check_info_time,
-#     selected_check_security_waiting_time,
-#     selected_check_security_time,
-#     toltalTime,
-# ) = record.getRecordsInHour(0, 24, True, "arrival_time")
-
-# print("LAM not good is:",str(LAM))
+print(f"Total job in: {len(raw_arrival_time)}")
 print(f"Total job out: {len(selected_arrival_time)}")
 print(f"Mean of Job: {np.mean(num_job)}")
 print(f"Mean total time: {np.mean(toltalTime)/time_scale}")
 
-# plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
-# plt.plot(static_analyzer_interval.averageDataBuffer)
-# test = []
-# for i in range(len(num_job)):
-#     test.append(np.mean(num_job[0:i+1]))
+if False:
+    plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
+    plt.plot(static_analyzer_interval.averageDataBuffer)
+    test = []
+    for i in range(len(num_job)):
+        test.append(np.mean(num_job[0:i+1]))
+    plt.plot(test)
+    plt.show()
 
-# plt.plot(test)
-# plt.show()
-plt.plot(
-    selected_arrival_time,
-    toltalTime
-)
-plt.xlabel("Arrival time")
-plt.ylabel("Total time")
-plt.title("Simple Plot")
-plt.show()
+    plt.plot(
+        selected_arrival_time,
+        toltalTime
+    )
+    plt.xlabel("Arrival time")
+    plt.ylabel("Total time")
+    plt.title("Simple Plot")
+    plt.show()
