@@ -7,7 +7,7 @@ from threading import Thread, Lock
 
 mutex = Lock()
 
-time_scale = 60
+time_scale = 1
 
 LAM = 200
 
@@ -28,7 +28,7 @@ NUMBER_CHECK_IN = 3
 NUMBER_CHECK_INFO = 2
 NUMBER_SERVER_OF_EACH_CHECK_INFO = 3
 NUMBER_CHECK_SECURITY = 8
-SIM_TIME = 2000
+SIM_TIME = 40
 
 p = [[0 for j in range(14)] for i in range(14)]
 
@@ -152,30 +152,24 @@ class Passenger:
     def __init__(self, id):
         self.id = id
         self.arrival_time = 0
-        self.check_in_start_waiting_time = 0
         self.check_in_waiting_time = 0
         self.check_in_time = 0
-        self.check_info_start_waiting_time = 0
         self.check_info_waiting_time = 0
         self.check_info_time = 0
-        self.check_security_start_waiting_time = 0
         self.check_security_waiting_time = 0
         self.check_security_time = 0
-        self.check_special_security_start_waiting_time = 0
-        self.check_special_security_waiting_time = 0
-        self.check_special_security_time = 0
         self.is_finished = False
 
     def checkInProc(self, env, server, check_in_id):
         global job_env_pop
-        self.check_in_start_waiting_time = env.now
+        check_in_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK IN at {self.check_in_start_waiting_time}"
         # )
         with server.check_in_server[check_in_id - 1].resource.request() as req:
             yield req
             self.check_in_waiting_time = (
-                env.now - self.check_in_start_waiting_time + self.check_in_waiting_time
+                env.now - check_in_start_waiting_time + self.check_in_waiting_time
             )
             # print(f"Passenger {self.id} WAIT {self.check_in_waiting_time} at CHECK IN")
             yield env.process(
@@ -192,7 +186,7 @@ class Passenger:
 
     def checkInfoProc(self, env, server, check_info_id):
         global record, job_env_pop
-        self.check_info_start_waiting_time = env.now
+        check_info_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK INFO at {self.check_info_start_waiting_time}"
         # )
@@ -200,7 +194,7 @@ class Passenger:
             yield req
             self.check_info_waiting_time = (
                 env.now
-                - self.check_info_start_waiting_time
+                - check_info_start_waiting_time
                 + self.check_info_waiting_time
             )
             # print(
@@ -236,7 +230,7 @@ class Passenger:
                     # print(f"Passenger {self.id} EXIT at {env.now}")
                     job_env_pop.succeed()
                     job_env_pop = env.event()
-                    record.add_record(self)
+                    record.updatePassenger(self)
             if check_info_id == 2:
                 prob = np.random.uniform()
                 # print(f"Passenger {self.id} prob {prob}")
@@ -252,11 +246,11 @@ class Passenger:
                     # print(f"Passenger {self.id} EXIT at {env.now}")
                     job_env_pop.succeed()
                     job_env_pop = env.event()
-                    record.add_record(self)
+                    record.updatePassenger(self)
 
     def checkSecurityProc(self, env, server, check_security_id):
         global record, job_env_pop
-        self.check_security_start_waiting_time = env.now
+        check_security_start_waiting_time = env.now
         # print(
         #     f"Passenger {self.id} start waiting at CHECK SECURITY-{check_security_id-1} at {self.check_security_start_waiting_time}"
         # )
@@ -266,7 +260,7 @@ class Passenger:
             yield req
             self.check_security_waiting_time = (
                 env.now
-                - self.check_security_start_waiting_time
+                - check_security_start_waiting_time
                 + self.check_security_waiting_time
             )
             # print(
@@ -289,54 +283,66 @@ class Passenger:
                     # print(f"Passenger {self.id} DONE at {env.now}")
                     job_env_pop.succeed()
                     job_env_pop = env.event()
-                    record.add_record(self)
+                    record.updatePassenger(self)
 
             if check_security_id == 8:
                 prob = np.random.uniform()
                 # print(f"Passenger {self.id} prob {prob}")
                 if prob < p[13][0]:
                     # print(f"Passenger {self.id} EXIT at {env.now}")
-                    record.add_record(self)
+                    job_env_pop.succeed()
+                    job_env_pop = env.event()
+                    record.updatePassenger(self)
                 else:
                     self.is_finished = True
                     # print(f"Passenger {self.id} DONE at {env.now}")
                     job_env_pop.succeed()
                     job_env_pop = env.event()
-                    record.add_record(self)
+                    record.updatePassenger(self)
 
 
 class PassengerRecords:
     def __init__(self):
         self.record_count = 0
         self.arrival_time = np.array([])
-        self.check_in_start_waiting_time = np.array([])
         self.check_in_waiting_time = np.array([])
         self.check_in_time = np.array([])
-        self.check_info_start_waiting_time = np.array([])
         self.check_info_waiting_time = np.array([])
         self.check_info_time = np.array([])
-        self.check_security_start_waiting_time = np.array([])
         self.check_security_waiting_time = np.array([])
         self.check_security_time = np.array([])
         self.totalTime = np.array([])
+        self.is_finished = np.array([], dtype=bool)
         self.passengerRecords = np.array([], dtype=object)
+    
+    def updatePassenger(self, passenger: Passenger):
+        self.arrival_time[passenger.id] = passenger.arrival_time
+        self.check_in_waiting_time[passenger.id] = passenger.check_in_waiting_time
+        self.check_in_time[passenger.id] = passenger.check_in_time
+        self.check_info_waiting_time[passenger.id] = passenger.check_in_waiting_time
+        self.check_info_time[passenger.id] = passenger.check_info_time
+        self.check_security_waiting_time[passenger.id] = passenger.check_security_waiting_time
+        self.check_security_time[passenger.id] = passenger.check_security_time
+        self.totalTime[passenger.id] = \
+        passenger.check_in_waiting_time \
+        + passenger.check_in_time \
+        + passenger.check_info_waiting_time \
+        + passenger.check_info_time \
+        + passenger.check_security_waiting_time \
+        + passenger.check_security_time
+        self.is_finished[passenger.id] = True
+        self.passengerRecords[passenger.id] = passenger 
 
-    def add_record(self, passenger: Passenger):
+    def addRecord(self, passenger: Passenger):
         self.passengerRecords = np.append(self.passengerRecords, passenger)
         self.record_count = self.record_count + 1
         self.arrival_time = np.append(self.arrival_time, passenger.arrival_time)
 
-        self.check_in_start_waiting_time = np.append(
-            self.check_in_start_waiting_time, passenger.check_in_start_waiting_time
-        )
         self.check_in_waiting_time = np.append(
             self.check_in_waiting_time, passenger.check_in_waiting_time
         )
         self.check_in_time = np.append(self.check_in_time, passenger.check_in_time)
 
-        self.check_info_start_waiting_time = np.append(
-            self.check_info_start_waiting_time, passenger.check_info_start_waiting_time
-        )
         self.check_info_waiting_time = np.append(
             self.check_info_waiting_time, passenger.check_info_waiting_time
         )
@@ -344,10 +350,6 @@ class PassengerRecords:
             self.check_info_time, passenger.check_info_time
         )
 
-        self.check_security_start_waiting_time = np.append(
-            self.check_security_start_waiting_time,
-            passenger.check_security_start_waiting_time,
-        )
         self.check_security_waiting_time = np.append(
             self.check_security_waiting_time, passenger.check_security_waiting_time
         )
@@ -365,6 +367,8 @@ class PassengerRecords:
             + passenger.check_security_time,
         )
 
+        self.is_finished = np.append(self.is_finished, False)
+
     def getRawRecord(self):
         return (
             self.arrival_time,
@@ -375,6 +379,18 @@ class PassengerRecords:
             self.check_security_waiting_time,
             self.check_info_time,
             self.totalTime,
+        )
+
+    def getRawRecordFiltered(self):
+        return (
+            self.arrival_time[record.is_finished],
+            self.check_in_waiting_time[record.is_finished],
+            self.check_in_time[record.is_finished],
+            self.check_info_waiting_time[record.is_finished],
+            self.check_info_time[record.is_finished],
+            self.check_security_waiting_time[record.is_finished],
+            self.check_info_time[record.is_finished],
+            self.totalTime[record.is_finished],
         )
 
     def getRecordsInHour(self, startOfHour, endOfHour, sort=False, field=None):
@@ -500,7 +516,7 @@ class PassengerGenerator:
     def generate(self, env):
         global job_env_add
         print("LAM:",str(LAM))
-        i = 1
+        i = 0
         while True:
             global static_analyzer_arrival_rate,static_analyzer_interval,num_job
             duration = random.expovariate(LAM/time_scale)
@@ -510,6 +526,7 @@ class PassengerGenerator:
             passenger.arrival_time = env.now
             job_env_add.succeed()
             job_env_add = env.event()
+            record.addRecord(passenger)
             print(f"Passenger {i} arrive at {passenger.arrival_time}")
             
             prob = np.random.uniform()
@@ -546,6 +563,7 @@ for i in range(NUMBER_CHECK_INFO):
 for i in range(NUMBER_CHECK_SECURITY):
     mu_value = i + 1 + NUMBER_CHECK_IN + NUMBER_CHECK_INFO
     check_security.append(CheckSecurity(env, i, locals()[f"MU{mu_value}"]/time_scale))
+
 server = Server(check_in, check_info, check_security)
 passenger_generator = PassengerGenerator(env, server)
 env.process(addJob())
@@ -561,7 +579,52 @@ env.run(until=SIM_TIME)
     selected_check_security_waiting_time,
     selected_check_security_time,
     toltalTime,
-) = record.getRawRecord()
+) = record.getRawRecordFiltered()
+
+while np.mean(num_job) < len(selected_arrival_time) and False:
+    LAM+=1
+    print(f"Run with LAM: {LAM}")
+    static_analyzer_arrival_rate = StatisticsAnalyzer(1000)
+    static_analyzer_interval=StatisticsAnalyzer(1000)
+    num_job_current = 0
+    num_job = []
+    random.seed(42)
+    record = PassengerRecords()
+    env = simpy.Environment()
+    job_env_add = env.event()
+    job_env_pop = env.event()
+    check_in = []
+    check_info = []
+    check_security = []
+    for i in range(NUMBER_CHECK_IN):
+        mu_value = i + 1
+        check_in.append(CheckIn(env, i, locals()[f"MU{mu_value}"]/time_scale))
+    for i in range(NUMBER_CHECK_INFO):
+        mu_value = i + 1 + NUMBER_CHECK_IN
+        number_of_server = NUMBER_SERVER_OF_EACH_CHECK_INFO
+        if mu_value == 5:
+            number_of_server = 1
+        check_info.append(CheckInfo(env, i, locals()[f"MU{mu_value}"]/time_scale, number_of_server))
+    for i in range(NUMBER_CHECK_SECURITY):
+        mu_value = i + 1 + NUMBER_CHECK_IN + NUMBER_CHECK_INFO
+        check_security.append(CheckSecurity(env, i, locals()[f"MU{mu_value}"]/time_scale))
+
+    server = Server(check_in, check_info, check_security)
+    passenger_generator = PassengerGenerator(env, server)
+    env.process(addJob())
+    env.process(popJob())
+    env.run(until=SIM_TIME)
+
+    (
+        selected_arrival_time,
+        selected_check_in_waiting_time,
+        selected_check_in_time,
+        selected_check_info_waiting_time,
+        selected_check_info_time,
+        selected_check_security_waiting_time,
+        selected_check_security_time,
+        toltalTime,
+    ) = record.getRawRecord()
 
 # (
 #     selected_arrival_time,
@@ -574,13 +637,24 @@ env.run(until=SIM_TIME)
 #     toltalTime,
 # ) = record.getRecordsInHour(0, 24, True, "arrival_time")
 
-print(f"Total job: {len(selected_arrival_time)}")
+# print("LAM not good is:",str(LAM))
+print(f"Total job out: {len(selected_arrival_time)}")
 print(f"Mean of Job: {np.mean(num_job)}")
-print(
-    f"Mean total time: {np.mean(toltalTime)/time_scale}"
-)
+print(f"Mean total time: {np.mean(toltalTime)/time_scale}")
 
 # plt.hist(static_analyzer_interval.rawDataPointBuffer, 100)
 # plt.plot(static_analyzer_interval.averageDataBuffer)
-# plt.plot(num_job)
+# test = []
+# for i in range(len(num_job)):
+#     test.append(np.mean(num_job[0:i+1]))
+
+# plt.plot(test)
 # plt.show()
+plt.plot(
+    selected_arrival_time,
+    toltalTime
+)
+plt.xlabel("Arrival time")
+plt.ylabel("Total time")
+plt.title("Simple Plot")
+plt.show()
